@@ -12,6 +12,27 @@
 
 #define	HANDGRENADE_PRIMARY_VOLUME		450
 
+
+class CPepsigun : public CBasePlayerWeapon
+{
+public:
+	void Spawn( void );
+	void Precache( void );
+	int iItemSlot( void ) { return 4; }
+	int GetItemInfo(ItemInfo *p);
+
+	void PrimaryAttack( void );
+	BOOL Deploy( void );
+	BOOL CanHolster( void );
+	void Holster( int skiplocal = 0 );
+	void WeaponIdle( void );
+
+	virtual BOOL UseDecrement( void )
+	{
+		return FALSE;
+	}
+};
+
 enum handgrenade_e
 {
 	HANDGRENADE_IDLE = 0,
@@ -78,7 +99,7 @@ BOOL CPepsigun::CanHolster( void )
 
 void CPepsigun::Holster( int skiplocal /* = 0 */ )
 {
-	m_pPlayer->m_flNextAttack = UTIL_WeaponTimeBase() + 0.5;
+	m_pPlayer->m_flNextAttack = gpGlobals->time + 0.5;
 
 	if( m_pPlayer->m_rgAmmo[m_iPrimaryAmmoType] )
 	{
@@ -99,7 +120,7 @@ void CPepsigun::PrimaryAttack()
 {
 		m_flStartThrow = gpGlobals->time;
 		m_flReleaseThrow = 0;
-		m_flTimeWeaponIdle = UTIL_WeaponTimeBase() + 0.25;
+		m_flTimeWeaponIdle = gpGlobals->time + 0.25;
 }
 
 void CPepsigun::WeaponIdle( void )
@@ -107,7 +128,7 @@ void CPepsigun::WeaponIdle( void )
 	if( m_flReleaseThrow == 0 && m_flStartThrow )
 		 m_flReleaseThrow = gpGlobals->time;
 
-	if( m_flTimeWeaponIdle > UTIL_WeaponTimeBase() )
+	if( m_flTimeWeaponIdle > gpGlobals->time )
 		return;
 
 	if( m_flStartThrow )
@@ -154,8 +175,8 @@ void CPepsigun::WeaponIdle( void )
 
 		m_flReleaseThrow = 0;
 		m_flStartThrow = 0;
-		m_flNextPrimaryAttack = UTIL_WeaponTimeBase() + 0.5;
-		m_flTimeWeaponIdle = UTIL_WeaponTimeBase() + 0.5;
+		m_flNextPrimaryAttack = gpGlobals->time + 0.5;
+		m_flTimeWeaponIdle = gpGlobals->time + 0.5;
 
 
 		if( !m_pPlayer->m_rgAmmo[m_iPrimaryAmmoType] )
@@ -163,7 +184,7 @@ void CPepsigun::WeaponIdle( void )
 			// just threw last grenade
 			// set attack times in the future, and weapon idle in the future so we can see the whole throw
 			// animation, weapon idle will automatically retire the weapon for us.
-			m_flTimeWeaponIdle = m_flNextSecondaryAttack = m_flNextPrimaryAttack = UTIL_WeaponTimeBase() + 0.5;// ensure that the animation can finish playing
+			m_flTimeWeaponIdle = m_flNextSecondaryAttack = m_flNextPrimaryAttack = gpGlobals->time + 0.5;// ensure that the animation can finish playing
 		}
 		return;
 	}
@@ -182,7 +203,7 @@ void CPepsigun::WeaponIdle( void )
 			return;
 		}
 
-		m_flTimeWeaponIdle = UTIL_WeaponTimeBase() + UTIL_SharedRandomFloat( m_pPlayer->random_seed, 10, 15 );
+		m_flTimeWeaponIdle = gpGlobals->time + UTIL_SharedRandomFloat( m_pPlayer->random_seed, 10, 15 );
 		m_flReleaseThrow = -1;
 		return;
 	}
@@ -194,11 +215,11 @@ void CPepsigun::WeaponIdle( void )
 		if( flRand <= 0.75 )
 		{
 			iAnim = HANDGRENADE_IDLE;
-			m_flTimeWeaponIdle = UTIL_WeaponTimeBase() + UTIL_SharedRandomFloat( m_pPlayer->random_seed, 10, 15 );// how long till we do this again.
+			m_flTimeWeaponIdle = gpGlobals->time + UTIL_SharedRandomFloat( m_pPlayer->random_seed, 10, 15 );// how long till we do this again.
 		}
 		else
 		{
-			m_flTimeWeaponIdle = UTIL_WeaponTimeBase() + 75.0 / 30.0;
+			m_flTimeWeaponIdle = gpGlobals->time + 75.0 / 30.0;
 		}
 
 	}
