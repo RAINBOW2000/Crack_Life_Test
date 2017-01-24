@@ -224,7 +224,7 @@ void CSnipars::Shoot( float flSpread , float flCycleTime, BOOL fUseAutoAim )
 }
 
 void CSnipars::Reload( void ) 
-{ 
+{
 	if ( m_fInZoom )
 	{
 		SecondaryAttack();

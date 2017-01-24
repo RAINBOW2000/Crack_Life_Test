@@ -99,7 +99,6 @@ public:
 #define WEAPON_GLOCK2 19
 #define WEAPON_KATANA 20
 #define WEAPON_ROCK 21
-#define WEAPON_PEPSIGUN 22
 #define WEAPON_HAMMER 	23
 
 

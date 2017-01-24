@@ -13,6 +13,7 @@
 #define	HANDGRENADE_PRIMARY_VOLUME		450
 
 
+
 class CPepsigun : public CBasePlayerWeapon
 {
 public:
@@ -43,6 +44,32 @@ enum handgrenade_e
 	HANDGRENADE_DRAW
 
 };
+class CPepsigun : public CBasePlayerWeapon
+{
+public:
+	void Spawn( void );
+	void Precache( void );
+	int iItemSlot( void ) { return 4; }
+	int GetItemInfo(ItemInfo *p);
+
+	void PrimaryAttack( void );
+	void Reload( void );
+	BOOL Deploy( void );
+	BOOL CanHolster( void );
+	void Holster( int skiplocal = 0 );
+	void WeaponIdle( void );
+	int m_fInReload;
+	float m_flNextReload;
+
+	virtual BOOL UseDecrement( void )
+	{ 
+#if defined( CLIENT_WEAPONS )
+		return TRUE;
+#else
+		return FALSE;
+#endif
+	}
+}
 
 LINK_ENTITY_TO_CLASS( weapon_pepsigun, CPepsigun )
 LINK_ENTITY_TO_CLASS( ammo_pepsi, CPepsigun )
@@ -56,7 +83,7 @@ void CPepsigun::Spawn()
 #ifndef CLIENT_DLL
 	pev->dmg = 80;
 #endif
-	m_iDefaultAmmo = 10000;
+	m_iDefaultAmmo = 100;
 
 	FallInit();// get ready to fall down.
 }
@@ -66,6 +93,7 @@ void CPepsigun::Precache( void )
 	PRECACHE_MODEL( "models/w_pepsigun.mdl" );
 	PRECACHE_MODEL( "models/v_pepsigun.mdl" );
 	PRECACHE_MODEL( "models/p_pepsigun.mdl" );
+	PRECACHE_SOUND( "weapons/pepsigun_shoot.wav");
 }
 
 int CPepsigun::GetItemInfo( ItemInfo *p )
@@ -75,11 +103,11 @@ int CPepsigun::GetItemInfo( ItemInfo *p )
 	p->iMaxAmmo1 = 20000;
 	p->pszAmmo2 = NULL;
 	p->iMaxAmmo2 = -1;
-	p->iMaxClip = -1;
+	p->iMaxClip = 8;
 	p->iSlot = 2;
 	p->iPosition = 4;
 	p->iId = m_iId = WEAPON_PEPSIGUN;
-	p->iWeight = PEPSIGUN_WEIGHT;
+	p->iWeight = 10;
 	p->iFlags = ITEM_FLAG_LIMITINWORLD | ITEM_FLAG_EXHAUSTIBLE;
 
 	return 1;
@@ -118,13 +146,84 @@ void CPepsigun::Holster( int skiplocal /* = 0 */ )
 
 void CPepsigun::PrimaryAttack()
 {
+
 		m_flStartThrow = gpGlobals->time;
 		m_flReleaseThrow = 0;
 		m_flTimeWeaponIdle = gpGlobals->time + 0.25;
+
+	if(m_iClip > 0)
+	{
+	m_flStartThrow = gpGlobals->time;
+	m_flReleaseThrow = 0;
+	m_flTimeWeaponIdle = gpGlobals->time + 0.25;
+	}
+}
+void CPepsigun::Reload( void )
+{
+	if( m_pPlayer->m_rgAmmo[m_iPrimaryAmmoType] <= 0 || m_iClip == SHOTGUN_MAX_CLIP )
+		return;
+
+	// don't reload until recoil is done
+	if( m_flNextPrimaryAttack > gpGlobals->time)
+		return;
+
+	// check to see if we're ready to reload
+	if( m_fInSpecialReload == 0 )
+	{
+		SendWeaponAnim( HANDGRENADE_OPEN );
+		m_fInSpecialReload = 1;
+		m_pPlayer->m_flNextAttack = gpGlobals->time+ 0.6;
+		m_flTimeWeaponIdle = gpGlobals->time + 0.6;
+		m_flNextPrimaryAttack = gpGlobals->time + 1.0;
+		m_flNextSecondaryAttack = gpGlobals->time + 1.0;
+		return;
+	}
+	else if( m_fInSpecialReload == 1 )
+	{
+		if( m_flTimeWeaponIdle > gpGlobals->time )
+			return;
+		// was waiting for gun to move to side
+		m_fInSpecialReload = 2;
+
+		if( RANDOM_LONG( 0, 1 ) )
+			EMIT_SOUND_DYN( ENT( m_pPlayer->pev ), CHAN_ITEM, "weapons/reload1.wav", 1, ATTN_NORM, 0, 85 + RANDOM_LONG( 0, 0x1f ) );
+		else
+			EMIT_SOUND_DYN( ENT( m_pPlayer->pev ), CHAN_ITEM, "weapons/reload3.wav", 1, ATTN_NORM, 0, 85 + RANDOM_LONG( 0, 0x1f ) );
+
+		SendWeaponAnim( HANDGRENADE_INSERT );
+
+		m_flNextReload = gpGlobals->time + 0.5;
+		m_flTimeWeaponIdle = gpGlobals->time + 0.5;
+	}
+	else
+	{
+		// Add them to the clip
+		m_iClip += 1;
+		m_pPlayer->m_rgAmmo[m_iPrimaryAmmoType] -= 1;
+		m_fInSpecialReload = 1;
+	}
 }
 
 void CPepsigun::WeaponIdle( void )
 {
+		if( m_iClip == 0 && m_fInSpecialReload == 0 && m_pPlayer->m_rgAmmo[m_iPrimaryAmmoType] )
+		{
+			Reload();
+		}
+		else if( m_fInSpecialReload != 0 )
+		{
+			if( m_iClip != 8 && m_pPlayer->m_rgAmmo[m_iPrimaryAmmoType] )
+			{
+				Reload();
+			}
+			else
+			{
+				// reload debounce has timed out
+				SendWeaponAnim( HANDGRENADE_CLOSE );
+				m_fInSpecialReload = 0;
+				m_flTimeWeaponIdle = UTIL_WeaponTimeBase() + 1.5;
+			}
+		}
 	if( m_flReleaseThrow == 0 && m_flStartThrow )
 		 m_flReleaseThrow = gpGlobals->time;
 
@@ -156,17 +255,20 @@ void CPepsigun::WeaponIdle( void )
 			time = 0;
 
 		CGrenade::ShootTimed( m_pPlayer->pev, vecSrc, vecThrow, time );
-
+		m_iClip--;
 		if( flVel < 500 )
 		{
-			SendWeaponAnim( HANDGRENADE_FIRE );
+		EMIT_SOUND( ENT( m_pPlayer->pev ), CHAN_ITEM, "weapons/pepsigun_shoot.wav", 1, ATTN_NORM );
+		SendWeaponAnim( HANDGRENADE_FIRE );
 		}
 		else if( flVel < 1000 )
 		{
+			EMIT_SOUND( ENT( m_pPlayer->pev ), CHAN_ITEM, "weapons/pepsigun_shoot.wav", 1, ATTN_NORM );
 			SendWeaponAnim( HANDGRENADE_FIRE );
 		}
 		else
 		{
+			EMIT_SOUND( ENT( m_pPlayer->pev ), CHAN_ITEM, "weapons/pepsigun_shoot.wav", 1, ATTN_NORM );
 			SendWeaponAnim( HANDGRENADE_FIRE );
 		}
 
@@ -221,6 +323,8 @@ void CPepsigun::WeaponIdle( void )
 		{
 			m_flTimeWeaponIdle = gpGlobals->time + 75.0 / 30.0;
 		}
-
-	}
+	if( !m_iClip && m_pPlayer->m_rgAmmo[m_iPrimaryAmmoType] <= 0 )
+		// HEV suit - indicate out of ammo condition
+		m_pPlayer->SetSuitUpdate( "!HEV_AMO0", FALSE, 0 );
+}
 }
